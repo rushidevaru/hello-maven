@@ -4,69 +4,55 @@ pipeline {
 
     stages {
 
-        // Stage 1: Fetch application source code from GitHub
         stage('Checkout') {
             steps {
-                echo 'Checking out Maven project from GitHub'
-
+                echo 'Checking out Maven project'
                 checkout scm
-
                 sh 'pwd'
                 sh 'ls -la'
             }
         }
 
-        // Stage 2: Verify Java and Maven
         stage('Check Tools') {
             steps {
-                echo 'Checking Java and Maven versions'
-
+                echo 'Checking Java and Maven'
                 sh 'java -version'
                 sh 'mvn -version'
             }
         }
 
-        // Stage 3: Compile Java source code
         stage('Compile') {
             steps {
                 echo 'Compiling Java application'
-
                 sh 'mvn clean compile'
             }
         }
 
-        // Stage 4: Execute unit tests
         stage('Test') {
             steps {
                 echo 'Running unit tests'
-
                 sh 'mvn test'
             }
         }
 
-        // Stage 5: Generate executable JAR
         stage('Package') {
             steps {
                 echo 'Creating executable JAR'
-
                 sh 'mvn package -DskipTests'
             }
         }
 
-        // Stage 6: Store JAR inside Jenkins build artifacts
         stage('Archive Artifact') {
             steps {
-                echo 'Archiving generated JAR'
-
+                echo 'Archiving JAR in Jenkins'
                 archiveArtifacts artifacts: 'target/*.jar',
                                  fingerprint: true
             }
         }
 
-        // Stage 7: Deploy the same JAR to managed EC2
-        stage('Deploy to EC2') {
+        stage('Deploy to Multiple Servers') {
             steps {
-                echo 'Deploying Maven JAR to managed EC2'
+                echo 'Deploying JAR to both EC2 servers'
 
                 withCredentials([
                     sshUserPrivateKey(
@@ -78,21 +64,26 @@ pipeline {
                     sh '''
                         set -e
 
-                        echo "Transferring JAR to managed EC2"
+                        SERVERS="13.203.219.8 13.232.230.72"
 
-                        scp -i "$SSH_KEY" \
-                            -o StrictHostKeyChecking=accept-new \
-                            target/hello-maven-1.0-SNAPSHOT.jar \
-                            "$SSH_USER@13.203.219.8:/opt/hello-maven/"
+                        for SERVER in $SERVERS
+                        do
+                            echo "Deploying to $SERVER"
 
-                        echo "Executing JAR on managed EC2"
+                            scp -i "$SSH_KEY" \
+                                -o StrictHostKeyChecking=accept-new \
+OBOBOB                                target/hello-maven-1.0-SNAPSHOT.jar \
+                                "$SSH_USER@$SERVER:/opt/hello-maven/"
 
-                        ssh -i "$SSH_KEY" \
-                            -o StrictHostKeyChecking=accept-new \
-                            "$SSH_USER@13.203.219.8" \
-                            'cd /opt/hello-maven && java -jar hello-maven-1.0-SNAPSHOT.jar'
+OBOBOB                            echo "Running application on $SERVER"
 
-                        echo "JAR deployment completed"
+                            ssh -i "$SSH_KEY" \
+                                -o StrictHostKeyChecking=accept-new \
+                                "$SSH_USER@$SERVER" \
+                                'cd /opt/hello-maven && java -jar hello-maven-1.0-SNAPSHOT.jar'
+
+                            echo "Deployment successful on $SERVER"
+                        done
                     '''
                 }
             }
@@ -101,7 +92,7 @@ pipeline {
 
     post {
         success {
-            echo 'Maven CI and EC2 deployment completed successfully!'
+            echo 'Multi-server deployment completed successfully!'
         }
 
         failure {
