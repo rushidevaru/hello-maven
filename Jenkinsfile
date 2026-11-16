@@ -8,14 +8,11 @@ pipeline {
             steps {
                 echo 'Checking out Maven project'
                 checkout scm
-                sh 'pwd'
-                sh 'ls -la'
             }
         }
 
         stage('Check Tools') {
             steps {
-                echo 'Checking Java and Maven'
                 sh 'java -version'
                 sh 'mvn -version'
             }
@@ -23,28 +20,24 @@ pipeline {
 
         stage('Compile') {
             steps {
-                echo 'Compiling Java application'
                 sh 'mvn clean compile'
             }
         }
 
         stage('Test') {
             steps {
-                echo 'Running unit tests'
                 sh 'mvn test'
             }
         }
 
         stage('Package') {
             steps {
-                echo 'Creating executable JAR'
                 sh 'mvn package -DskipTests'
             }
         }
 
         stage('Archive Artifact') {
             steps {
-                echo 'Archiving JAR in Jenkins'
                 archiveArtifacts artifacts: 'target/*.jar',
                                  fingerprint: true
             }
@@ -52,8 +45,6 @@ pipeline {
 
         stage('Deploy to Multiple Servers') {
             steps {
-                echo 'Deploying JAR to both EC2 servers'
-
                 withCredentials([
                     sshUserPrivateKey(
                         credentialsId: 'maven-deploy-ssh-key',
@@ -64,23 +55,22 @@ pipeline {
                     sh '''
                         set -e
 
-                        SERVERS="13.203.219.8 13.232.230.72"
+                        JAR_FILE="target/hello-maven-1.0-SNAPSHOT.jar"
 
-                        for SERVER in $SERVERS
+                        if [ ! -f "$JAR_FILE" ]; then
+                            echo "ERROR: JAR file not found"
+                            exit 1
+                        fi
+
+                        for SERVER in 13.203.219.8 13.232.230.72
                         do
                             echo "Deploying to $SERVER"
 
-                            scp -i "$SSH_KEY" \
-                                -o StrictHostKeyChecking=accept-new \
-OBOBOB                                target/hello-maven-1.0-SNAPSHOT.jar \
-                                "$SSH_USER@$SERVER:/opt/hello-maven/"
+                            scp -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$JAR_FILE" "$SSH_USER@$SERVER:/opt/hello-maven/"
 
-OBOBOB                            echo "Running application on $SERVER"
+                            echo "Executing application on $SERVER"
 
-                            ssh -i "$SSH_KEY" \
-                                -o StrictHostKeyChecking=accept-new \
-                                "$SSH_USER@$SERVER" \
-                                'cd /opt/hello-maven && java -jar hello-maven-1.0-SNAPSHOT.jar'
+                            ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$SSH_USER@$SERVER" "cd /opt/hello-maven && java -jar hello-maven-1.0-SNAPSHOT.jar"
 
                             echo "Deployment successful on $SERVER"
                         done
