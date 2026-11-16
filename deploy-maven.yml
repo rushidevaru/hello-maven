@@ -1,0 +1,40 @@
+
+---
+- name: Deploy Maven application to both EC2 servers
+  hosts: app_servers
+  become: yes
+
+  vars:
+    app_directory: /opt/hello-maven
+    jar_name: hello-maven-1.0-SNAPSHOT.jar
+
+    # Get the JAR from the Jenkins workspace
+    source_jar: "{{ playbook_dir }}/target/hello-maven-1.0-SNAPSHOT.jar"
+
+  tasks:
+    - name: Ensure application directory exists
+      file:
+        path: "{{ app_directory }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Copy Maven JAR to managed servers
+      copy:
+        src: "{{ source_jar }}"
+        dest: "{{ app_directory }}/{{ jar_name }}"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Execute Maven application
+      command:
+        cmd: "java -jar {{ app_directory }}/{{ jar_name }}"
+      become_user: ubuntu
+      register: app_output
+
+    - name: Display application output
+      debug:
+        var: app_output.stdout
+

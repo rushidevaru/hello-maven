@@ -6,8 +6,8 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                echo 'Checking out Maven project'
                 checkout scm
+                echo 'Source code checked out'
             }
         }
 
@@ -15,24 +15,13 @@ pipeline {
             steps {
                 sh 'java -version'
                 sh 'mvn -version'
+                sh 'ansible --version'
             }
         }
 
-        stage('Compile') {
+        stage('Build') {
             steps {
-                sh 'mvn clean compile'
-            }
-        }
-
-        stage('Test') {
-            steps {
-                sh 'mvn test'
-            }
-        }
-
-        stage('Package') {
-            steps {
-                sh 'mvn package -DskipTests'
+                sh 'mvn clean package'
             }
         }
 
@@ -43,7 +32,7 @@ pipeline {
             }
         }
 
-        stage('Deploy to Multiple Servers') {
+        stage('Deploy Using Ansible') {
             steps {
                 withCredentials([
                     sshUserPrivateKey(
@@ -53,28 +42,16 @@ pipeline {
                     )
                 ]) {
                     sh '''
-                        set -e
+    			set -e
 
-                        JAR_FILE="target/hello-maven-1.0-SNAPSHOT.jar"
+    			export ANSIBLE_HOST_KEY_CHECKING=False
 
-                        if [ ! -f "$JAR_FILE" ]; then
-                            echo "ERROR: JAR file not found"
-                            exit 1
-                        fi
-
-                        for SERVER in 13.203.219.8 13.232.230.72
-                        do
-                            echo "Deploying to $SERVER"
-
-                            scp -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$JAR_FILE" "$SSH_USER@$SERVER:/opt/hello-maven/"
-
-                            echo "Executing application on $SERVER"
-
-                            ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$SSH_USER@$SERVER" "cd /opt/hello-maven && java -jar hello-maven-1.0-SNAPSHOT.jar"
-
-                            echo "Deployment successful on $SERVER"
-                        done
-                    '''
+    			ansible-playbook \
+        			-i inventory.ini \
+        			-u "$SSH_USER" \
+        			--private-key "$SSH_KEY" \
+        			deploy-maven.yml
+			'''
                 }
             }
         }
@@ -82,11 +59,11 @@ pipeline {
 
     post {
         success {
-            echo 'Multi-server deployment completed successfully!'
+            echo 'Jenkins + Ansible deployment completed successfully!'
         }
 
         failure {
-            echo 'Pipeline failed. Check Console Output.'
+            echo 'Deployment failed. Check Console Output.'
         }
 
         always {
