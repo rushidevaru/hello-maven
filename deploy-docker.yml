@@ -1,0 +1,32 @@
+
+---
+- name: Deploy Docker application to EC2 servers
+  hosts: app_servers
+  become: yes
+
+  vars:
+    docker_image: rushikesh6022/hello-maven:v1
+    container_name: hello-maven-container
+
+  tasks:
+    - name: Pull Docker image from Docker Hub
+      docker_image:
+        name: "{{ docker_image }}"
+        source: pull
+
+    - name: Remove old application container if it exists
+      docker_container:
+        name: "{{ container_name }}"
+        state: absent
+
+    - name: Run application container
+      docker_container:
+        name: "{{ container_name }}"
+        image: "{{ docker_image }}"
+        state: started
+        detach: no
+
+    - name: Display deployment message
+      debug:
+        msg: "Docker application deployed on {{ inventory_hostname }}"
+

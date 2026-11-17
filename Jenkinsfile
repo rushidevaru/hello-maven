@@ -2,24 +2,19 @@
 pipeline {
     agent any
 
+    environment {
+        DOCKER_IMAGE = 'rushikesh6022/hello-maven:v1'
+    }
+
     stages {
 
         stage('Checkout') {
             steps {
                 checkout scm
-                echo 'Source code checked out'
             }
         }
 
-        stage('Check Tools') {
-            steps {
-                sh 'java -version'
-                sh 'mvn -version'
-                sh 'ansible --version'
-            }
-        }
-
-        stage('Build') {
+        stage('Maven Build') {
             steps {
                 sh 'mvn clean package'
             }
@@ -32,26 +27,30 @@ pipeline {
             }
         }
 
-        stage('Deploy Using Ansible') {
+        stage('Docker Build') {
+            steps {
+                sh 'docker build -t $DOCKER_IMAGE .'
+            }
+        }
+
+        stage('Docker Hub Login and Push') {
             steps {
                 withCredentials([
-                    sshUserPrivateKey(
-                        credentialsId: 'maven-deploy-ssh-key',
-                        keyFileVariable: 'SSH_KEY',
-                        usernameVariable: 'SSH_USER'
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_TOKEN'
                     )
                 ]) {
                     sh '''
-    			set -e
+                        set -e
+                        echo "$DOCKER_TOKEN" | docker login \
+                            -u "$DOCKER_USER" --password-stdin
 
-    			export ANSIBLE_HOST_KEY_CHECKING=False
+                        docker push "$DOCKER_IMAGE"
 
-    			ansible-playbook \
-        			-i inventory.ini \
-        			-u "$SSH_USER" \
-        			--private-key "$SSH_KEY" \
-        			deploy-maven.yml
-			'''
+                        docker logout
+                    '''
                 }
             }
         }
@@ -59,11 +58,11 @@ pipeline {
 
     post {
         success {
-            echo 'Jenkins + Ansible deployment completed successfully!'
+            echo 'Docker image successfully pushed to Docker Hub!'
         }
 
         failure {
-            echo 'Deployment failed. Check Console Output.'
+            echo 'Pipeline failed. Check Console Output.'
         }
 
         always {
