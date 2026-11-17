@@ -2,9 +2,7 @@
 pipeline {
     agent any
 
-    // Parameters shown when starting a Jenkins build
     parameters {
-
         choice(
             name: 'ENVIRONMENT',
             choices: ['dev', 'production'],
@@ -24,21 +22,17 @@ pipeline {
         )
     }
 
-    // Create Docker image name using selected tag
     environment {
         DOCKER_IMAGE = "rushikesh6022/hello-maven:${params.IMAGE_TAG}"
     }
 
     stages {
-
-        // Stage 1: Checkout source code
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        // Stage 2: Display selected parameters
         stage('Show Parameters') {
             steps {
                 echo "Environment: ${params.ENVIRONMENT}"
@@ -47,14 +41,12 @@ pipeline {
             }
         }
 
-        // Stage 3: Build Java application
         stage('Maven Build') {
             steps {
                 sh 'mvn clean package'
             }
         }
 
-        // Stage 4: Archive generated JAR
         stage('Archive Artifact') {
             steps {
                 archiveArtifacts artifacts: 'target/*.jar',
@@ -62,14 +54,23 @@ pipeline {
             }
         }
 
-        // Stage 5: Build Docker image
         stage('Docker Build') {
             steps {
+                script {
+                    def imageTag = params.IMAGE_TAG
+
+                    if (env.BRANCH_NAME == 'dev' && imageTag == 'v1') {
+                        imageTag = 'dev-v1'
+                    }
+
+                    env.DOCKER_IMAGE =
+                        "rushikesh6022/hello-maven:${imageTag}"
+                }
+
                 sh 'docker build -t "$DOCKER_IMAGE" .'
             }
         }
 
-        // Stage 6: Push Docker image to Docker Hub
         stage('Docker Hub Login and Push') {
             steps {
                 withCredentials([
@@ -93,7 +94,6 @@ pipeline {
             }
         }
 
-        // Stage 7: Deploy only when checkbox is enabled
         stage('Deploy Using Ansible') {
             when {
                 expression {
@@ -126,9 +126,7 @@ pipeline {
         }
     }
 
-    // Pipeline result handling
     post {
-
         success {
             echo "Pipeline completed for ${params.ENVIRONMENT}!"
         }
