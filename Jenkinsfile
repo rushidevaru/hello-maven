@@ -2,24 +2,21 @@
 pipeline {
     agent any
 
-    // Parameters displayed when starting a Jenkins build
+    // Parameters shown when starting a Jenkins build
     parameters {
 
-        // Select deployment environment
         choice(
             name: 'ENVIRONMENT',
             choices: ['dev', 'production'],
             description: 'Select deployment environment'
         )
 
-        // Select Docker image version
         string(
             name: 'IMAGE_TAG',
             defaultValue: 'v1',
             description: 'Enter Docker image tag'
         )
 
-        // Decide whether to deploy to EC2 servers
         booleanParam(
             name: 'DEPLOY_TO_SERVERS',
             defaultValue: true,
@@ -27,18 +24,21 @@ pipeline {
         )
     }
 
+    // Create Docker image name using selected tag
     environment {
         DOCKER_IMAGE = "rushikesh6022/hello-maven:${params.IMAGE_TAG}"
     }
 
     stages {
 
+        // Stage 1: Checkout source code
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
+        // Stage 2: Display selected parameters
         stage('Show Parameters') {
             steps {
                 echo "Environment: ${params.ENVIRONMENT}"
@@ -47,12 +47,14 @@ pipeline {
             }
         }
 
+        // Stage 3: Build Java application
         stage('Maven Build') {
             steps {
                 sh 'mvn clean package'
             }
         }
 
+        // Stage 4: Archive generated JAR
         stage('Archive Artifact') {
             steps {
                 archiveArtifacts artifacts: 'target/*.jar',
@@ -60,12 +62,14 @@ pipeline {
             }
         }
 
+        // Stage 5: Build Docker image
         stage('Docker Build') {
             steps {
                 sh 'docker build -t "$DOCKER_IMAGE" .'
             }
         }
 
+        // Stage 6: Push Docker image to Docker Hub
         stage('Docker Hub Login and Push') {
             steps {
                 withCredentials([
@@ -86,18 +90,19 @@ pipeline {
                         docker logout
                     '''
                 }
-OAOAOA            }
-OAOAOA        }
-OAOAOA
+            }
+        }
+
+        // Stage 7: Deploy only when checkbox is enabled
         stage('Deploy Using Ansible') {
             when {
-OAOAOA                expression {
+                expression {
                     return params.DEPLOY_TO_SERVERS
                 }
             }
 
             steps {
-OAOAOA                withCredentials([
+                withCredentials([
                     sshUserPrivateKey(
                         credentialsId: 'maven-deploy-ssh-key',
                         keyFileVariable: 'SSH_KEY',
@@ -118,17 +123,19 @@ pipeline {
                     '''
                 }
             }
-OAOAOA        }
+        }
     }
 
-OAOAOA    post {
-OAOAOA        success {
-OAOAOA            echo "Pipeline completed for ${params.ENVIRONMENT}!"
+    // Pipeline result handling
+    post {
+
+        success {
+            echo "Pipeline completed for ${params.ENVIRONMENT}!"
         }
 
         failure {
             echo 'Pipeline failed. Check Console Output.'
-OAOAOA        }
+        }
 
         always {
             echo 'Pipeline execution finished.'
