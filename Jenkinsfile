@@ -2,27 +2,57 @@
 pipeline {
     agent any
 
+    // Parameters displayed when starting a Jenkins build
+    parameters {
+
+        // Select deployment environment
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['dev', 'production'],
+            description: 'Select deployment environment'
+        )
+
+        // Select Docker image version
+        string(
+            name: 'IMAGE_TAG',
+            defaultValue: 'v1',
+            description: 'Enter Docker image tag'
+        )
+
+        // Decide whether to deploy to EC2 servers
+        booleanParam(
+            name: 'DEPLOY_TO_SERVERS',
+            defaultValue: true,
+            description: 'Deploy application to EC2 servers?'
+        )
+    }
+
     environment {
-        DOCKER_IMAGE = 'rushikesh6022/hello-maven:v1'
+        DOCKER_IMAGE = "rushikesh6022/hello-maven:${params.IMAGE_TAG}"
     }
 
     stages {
 
-        // Step 1: Download source code from GitHub
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        // Step 2: Build Java application using Maven
+        stage('Show Parameters') {
+            steps {
+                echo "Environment: ${params.ENVIRONMENT}"
+                echo "Docker Tag: ${params.IMAGE_TAG}"
+                echo "Deployment: ${params.DEPLOY_TO_SERVERS}"
+            }
+        }
+
         stage('Maven Build') {
             steps {
                 sh 'mvn clean package'
             }
         }
 
-        // Step 3: Save the generated JAR in Jenkins
         stage('Archive Artifact') {
             steps {
                 archiveArtifacts artifacts: 'target/*.jar',
@@ -30,14 +60,12 @@ pipeline {
             }
         }
 
-        // Step 4: Create Docker image
         stage('Docker Build') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE .'
+                sh 'docker build -t "$DOCKER_IMAGE" .'
             }
         }
 
-        // Step 5: Push Docker image to Docker Hub
         stage('Docker Hub Login and Push') {
             steps {
                 withCredentials([
@@ -58,13 +86,18 @@ pipeline {
                         docker logout
                     '''
                 }
-            }
-        }
-
-        // Step 6: Deploy Docker image to both EC2 servers
+OAOAOA            }
+OAOAOA        }
+OAOAOA
         stage('Deploy Using Ansible') {
+            when {
+OAOAOA                expression {
+                    return params.DEPLOY_TO_SERVERS
+                }
+            }
+
             steps {
-                withCredentials([
+OAOAOA                withCredentials([
                     sshUserPrivateKey(
                         credentialsId: 'maven-deploy-ssh-key',
                         keyFileVariable: 'SSH_KEY',
@@ -80,21 +113,22 @@ pipeline {
                             -i inventory.ini \
                             -u "$SSH_USER" \
                             --private-key "$SSH_KEY" \
-                            deploy-docker.yml
+                            deploy-docker.yml \
+                            -e docker_image="$DOCKER_IMAGE"
                     '''
                 }
             }
-        }
+OAOAOA        }
     }
 
-    post {
-        success {
-            echo 'Docker image built, pushed and deployed successfully!'
+OAOAOA    post {
+OAOAOA        success {
+OAOAOA            echo "Pipeline completed for ${params.ENVIRONMENT}!"
         }
 
         failure {
             echo 'Pipeline failed. Check Console Output.'
-        }
+OAOAOA        }
 
         always {
             echo 'Pipeline execution finished.'
